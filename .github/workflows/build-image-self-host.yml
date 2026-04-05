@@ -1,0 +1,256 @@
+name: "CI/CD: Build & Deploy (Self-hosted)"
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      branch_or_tag:
+        description: 'Branch or tag to build from (e.g. main, develop, v1.0.0)'
+        required: true
+        default: 'main'
+        type: string
+      custom_tag:
+        description: 'Custom image tag (e.g. hotfix-login, staging). Leave empty to auto-generate as v-YYYYMMDD-<sha>'
+        required: false
+        type: string
+
+concurrency:
+  group: deploy-shortlink
+  cancel-in-progress: true
+
+env:
+  K8S_NAMESPACE: shortlink
+
+jobs:
+  build-api:
+    name: Build API Image
+    runs-on: arc-runner-build
+    timeout-minutes: 30
+    env:
+      TZ: Asia/Ho_Chi_Minh
+      IMAGE_NAME: shortlink-api
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.branch_or_tag || github.ref }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+        with:
+          driver: kubernetes
+          driver-opts: |
+            namespace=arc-systems
+            requests.cpu=500m
+            requests.memory=1Gi
+            limits.cpu=1500m
+            limits.memory=2Gi
+          buildkitd-config-inline: |
+            [worker.oci]
+              max-parallelism = 2
+            [registry."${{ vars.REGISTRY_URL }}"]
+              http = true
+              insecure = true
+
+      - name: Get short commit SHA
+        id: commit
+        run: echo "short_sha=$(echo ${{ github.sha }} | cut -c1-6)" >> $GITHUB_OUTPUT
+
+      - name: Compute version tag
+        id: version
+        run: |
+          date_tag="$(date -u +"%Y%m%d")"
+          echo "computed_version=v-${date_tag}-${{ steps.commit.outputs.short_sha }}" >> "$GITHUB_OUTPUT"
+          echo "build_date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+      - name: Compute deploy tag
+        id: deploy
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          elif [ -n "${{ github.event.inputs.custom_tag }}" ]; then
+            echo "tag=${{ github.event.inputs.custom_tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ steps.version.outputs.computed_version }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ vars.REGISTRY_URL }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=tag
+            type=sha,format=short
+            type=raw,value=${{ github.event.inputs.custom_tag }},enable=${{ github.event.inputs.custom_tag != '' }}
+            type=raw,value=${{ steps.version.outputs.computed_version }},enable=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.custom_tag == '' }}
+          flavor: |
+            latest=true
+            prefix=
+            suffix=
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          platforms: "linux/amd64"
+          build-args: |
+            BUILD_DATE=${{ steps.version.outputs.build_date }}
+            VERSION=${{ steps.deploy.outputs.tag }}
+            GIT_SHA=${{ github.sha }}
+          tags: |
+            ${{ steps.meta.outputs.tags }}
+            ${{ vars.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ steps.deploy.outputs.tag }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ vars.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:cache,ignore-error=true
+          cache-to: type=registry,ref=${{ vars.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:cache,mode=max,ignore-error=true
+
+      - name: Summary
+        run: |
+          echo "### API Image Built :rocket:" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tag:** ${{ steps.deploy.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image:** ${{ vars.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ steps.deploy.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+
+  build-frontend:
+    name: Build Frontend Image
+    runs-on: arc-runner-build
+    timeout-minutes: 30
+    env:
+      TZ: Asia/Ho_Chi_Minh
+      IMAGE_NAME: shortlink-frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.branch_or_tag || github.ref }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+        with:
+          driver: kubernetes
+          driver-opts: |
+            namespace=arc-systems
+            requests.cpu=500m
+            requests.memory=1Gi
+            limits.cpu=1500m
+            limits.memory=2Gi
+          buildkitd-config-inline: |
+            [worker.oci]
+              max-parallelism = 2
+            [registry."${{ vars.REGISTRY_URL }}"]
+              http = true
+              insecure = true
+
+      - name: Get short commit SHA
+        id: commit
+        run: echo "short_sha=$(echo ${{ github.sha }} | cut -c1-6)" >> $GITHUB_OUTPUT
+
+      - name: Compute version tag
+        id: version
+        run: |
+          date_tag="$(date -u +"%Y%m%d")"
+          echo "computed_version=v-${date_tag}-${{ steps.commit.outputs.short_sha }}" >> "$GITHUB_OUTPUT"
+          echo "build_date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+      - name: Compute deploy tag
+        id: deploy
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          elif [ -n "${{ github.event.inputs.custom_tag }}" ]; then
+            echo "tag=${{ github.event.inputs.custom_tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ steps.version.outputs.computed_version }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ vars.REGISTRY_URL }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=tag
+            type=sha,format=short
+            type=raw,value=${{ github.event.inputs.custom_tag }},enable=${{ github.event.inputs.custom_tag != '' }}
+            type=raw,value=${{ steps.version.outputs.computed_version }},enable=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.custom_tag == '' }}
+          flavor: |
+            latest=true
+            prefix=
+            suffix=
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          platforms: "linux/amd64"
+          build-args: |
+            BUILD_DATE=${{ steps.version.outputs.build_date }}
+            VERSION=${{ steps.deploy.outputs.tag }}
+            GIT_SHA=${{ github.sha }}
+          tags: |
+            ${{ steps.meta.outputs.tags }}
+            ${{ vars.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ steps.deploy.outputs.tag }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ vars.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:cache,ignore-error=true
+          cache-to: type=registry,ref=${{ vars.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:cache,mode=max,ignore-error=true
+
+      - name: Summary
+        run: |
+          echo "### Frontend Image Built :rocket:" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tag:** ${{ steps.deploy.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image:** ${{ vars.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ steps.deploy.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+
+  deploy:
+    name: Deploy to Production
+    needs: [build-api, build-frontend]
+    runs-on: arc-runner-build
+    timeout-minutes: 10
+    env:
+      TZ: Asia/Ho_Chi_Minh
+      DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+
+    steps:
+      - name: Compute deploy tag
+        id: deploy
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          elif [ -n "${{ github.event.inputs.custom_tag }}" ]; then
+            echo "tag=${{ github.event.inputs.custom_tag }}" >> "$GITHUB_OUTPUT"
+          else
+            short_sha=$(echo ${{ github.sha }} | cut -c1-6)
+            date_tag="$(date -u +"%Y%m%d")"
+            echo "tag=v-${date_tag}-${short_sha}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ env.DEPLOY_HOST }}
+          username: ${{ env.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd ${{ env.DEPLOY_PATH }}
+
+            # Update image tag in .env
+            sed -i 's/^IMAGE_TAG=.*/IMAGE_TAG=${{ steps.deploy.outputs.tag }}/' .env
+
+            # Pull new images and restart
+            docker compose -f docker-compose.yml pull api frontend
+            docker compose -f docker-compose.yml up -d --force-recreate api frontend
+
+      - name: Summary
+        run: |
+          echo "### Deployed :white_check_mark:" >> $GITHUB_STEP_SUMMARY
+          echo "- **Host:** ${{ env.DEPLOY_HOST }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tag:** ${{ steps.deploy.outputs.tag }}" >> $GITHUB_STEP_SUMMARY

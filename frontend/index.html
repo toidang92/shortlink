@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Short Link</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+      color: #333;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    header {
+      background: #2563eb;
+      color: #fff;
+      width: 100%;
+      padding: 24px 0;
+      text-align: center;
+    }
+    header h1 { font-size: 28px; font-weight: 700; }
+    header p { font-size: 14px; opacity: 0.85; margin-top: 4px; }
+    .container {
+      max-width: 560px;
+      width: 100%;
+      padding: 32px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .card h2 {
+      font-size: 18px;
+      margin-bottom: 16px;
+      color: #1e40af;
+    }
+    .form-group { display: flex; gap: 8px; }
+    .form-group input {
+      flex: 1;
+      padding: 10px 14px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .form-group input:focus { border-color: #2563eb; }
+    .form-group button {
+      padding: 10px 20px;
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.2s;
+    }
+    .form-group button:hover { background: #1d4ed8; }
+    .form-group button:disabled { background: #93c5fd; cursor: not-allowed; }
+    .result {
+      margin-top: 16px;
+      padding: 12px 14px;
+      border-radius: 8px;
+      font-size: 14px;
+      display: none;
+      word-break: break-all;
+    }
+    .result.success { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+    .result.error { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+    .result a { color: #2563eb; text-decoration: none; font-weight: 600; }
+    .result a:hover { text-decoration: underline; }
+    .copy-btn {
+      display: inline-block;
+      margin-left: 8px;
+      padding: 2px 8px;
+      font-size: 12px;
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .copy-btn:hover { background: #1d4ed8; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Short Link</h1>
+    <p>Shorten &amp; decode links quickly</p>
+  </header>
+
+  <div class="container">
+    <!-- Encode -->
+    <div class="card">
+      <h2>Shorten URL</h2>
+      <div class="form-group">
+        <input type="url" id="encodeInput" placeholder="https://example.com/a-very-long-url...">
+        <button id="encodeBtn" onclick="encode()">Shorten</button>
+      </div>
+      <div class="result" id="encodeResult"></div>
+    </div>
+
+    <!-- Decode -->
+    <div class="card">
+      <h2>Decode URL</h2>
+      <div class="form-group">
+        <input type="url" id="decodeInput" placeholder="https://short.link/abc123...">
+        <button id="decodeBtn" onclick="decode()">Decode</button>
+      </div>
+      <div class="result" id="decodeResult"></div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = 'https://shortlink-api.toidang.xyz';
+
+    function showResult(el, html, isError) {
+      el.innerHTML = html;
+      el.className = 'result ' + (isError ? 'error' : 'success');
+      el.style.display = 'block';
+    }
+
+    async function encode() {
+      const input = document.getElementById('encodeInput');
+      const result = document.getElementById('encodeResult');
+      const btn = document.getElementById('encodeBtn');
+      const url = input.value.trim();
+
+      if (!url) { showResult(result, 'Please enter a URL.', true); return; }
+
+      btn.disabled = true;
+      btn.textContent = '...';
+      try {
+        const res = await fetch(API_BASE + '/encode', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Unknown error');
+        showResult(result,
+          'Short URL: <a href="' + data.short_url + '" target="_blank">' + data.short_url + '</a>' +
+          ' <button class="copy-btn" onclick="copy(\'' + data.short_url + '\', this)">Copy</button>',
+          false
+        );
+      } catch (e) {
+        showResult(result, 'Error: ' + e.message, true);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Shorten';
+      }
+    }
+
+    async function decode() {
+      const input = document.getElementById('decodeInput');
+      const result = document.getElementById('decodeResult');
+      const btn = document.getElementById('decodeBtn');
+      const shortUrl = input.value.trim();
+
+      if (!shortUrl) { showResult(result, 'Please enter a short URL.', true); return; }
+
+      btn.disabled = true;
+      btn.textContent = '...';
+      try {
+        const res = await fetch(API_BASE + '/decode', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ short_url: shortUrl })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Unknown error');
+        showResult(result,
+          'Original URL: <a href="' + data.url + '" target="_blank">' + data.url + '</a>',
+          false
+        );
+      } catch (e) {
+        showResult(result, 'Error: ' + e.message, true);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Decode';
+      }
+    }
+
+    function copy(text, btn) {
+      navigator.clipboard.writeText(text).then(() => {
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+      });
+    }
+
+    document.getElementById('encodeInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') encode();
+    });
+    document.getElementById('decodeInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') decode();
+    });
+  </script>
+</body>
+</html>

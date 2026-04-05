@@ -1,0 +1,70 @@
+name: "shortlink-prod"
+
+services:
+  postgres:
+    image: huntress/postgres-partman:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      POSTGRES_DB: ${DB_NAME:-shortlink_production}
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:8.6.2-alpine3.23
+    restart: unless-stopped
+    environment:
+      REDIS_ARGS: "--requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a ${REDIS_PASSWORD} ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    container_name: shortlink-api
+    image: ${REGISTRY_URL:-ghcr.io/toidb}/shortlink-api:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      RAILS_ENV: production
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:?SECRET_KEY_BASE is required}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: ${DB_USERNAME:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      DB_NAME: ${DB_NAME:-shortlink_production}
+      REDIS_URL: redis://default:${REDIS_PASSWORD}@redis:6379/0
+      REDIS_POOL_SIZE: ${REDIS_POOL_SIZE:-10}
+      REDIS_POOL_TIMEOUT: ${REDIS_POOL_TIMEOUT:-3}
+      SHORTLINK_SECRET: ${SHORTLINK_SECRET:?SHORTLINK_SECRET is required}
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      RAILS_MAX_THREADS: ${RAILS_MAX_THREADS:-5}
+      RAILS_LOG_LEVEL: ${RAILS_LOG_LEVEL:-info}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    container_name: shortlink-frontend
+    image: ${REGISTRY_URL:-ghcr.io/toidb}/shortlink-frontend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
+  redis_data:

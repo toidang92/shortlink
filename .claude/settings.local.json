@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rails new:*)",
+      "Bash(bundle install:*)",
+      "Bash(rails generate:*)",
+      "Bash(rails g:*)",
+      "Bash(rails db:create db:migrate)",
+      "Bash(bundle exec:*)",
+      "Bash(gem cleanup:*)",
+      "Bash(git mv:*)",
+      "Bash(RAILS_ENV=test bundle exec rails db:migrate)",
+      "Bash(docker compose:*)",
+      "Bash(bundle show:*)",
+      "Bash(bundle add:*)",
+      "Bash(make check:*)"
+    ]
+  }
+}
