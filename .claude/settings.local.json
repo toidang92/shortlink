@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rails new:*)",
+      "Bash(bundle install:*)",
+      "Bash(rails generate:*)",
+      "Bash(rails g:*)",
+      "Bash(rails db:create db:migrate)",
+      "Bash(bundle exec:*)",
+      "Bash(gem cleanup:*)",
+      "Bash(chmod +x /Users/toidb/Documents/projects/personal/shortlink/bin/docker-entrypoint)"
+    ]
+  }
+}
