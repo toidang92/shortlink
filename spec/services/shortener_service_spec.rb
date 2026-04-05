@@ -13,7 +13,7 @@ RSpec.describe ShortenerService do
       record = described_class.encode('https://example.com')
 
       expect(record.original_url).to eq('https://example.com')
-      expect(record.short_code).to match(/\A[a-zA-Z0-9]{6,}\z/)
+      expect(record.short_code).to match(/\A[a-zA-Z0-9]{11,}\z/)
     end
 
     it 'generates unique codes for different URLs' do
