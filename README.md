@@ -1,7 +1,7 @@
 # Shortlink
 
-[![CI](https://github.com/toidang92/shortlink/actions/workflows/ci.yml/badge.svg)](https://github.com/toidang92/shortlink/actions/workflows/ci.yml)
-[![Security](https://github.com/toidang92/shortlink/actions/workflows/security.yml/badge.svg)](https://github.com/toidang92/shortlink/actions/workflows/security.yml)
+[![Test: Unit tests](https://github.com/toidang92/shortlink/actions/workflows/unit-tests.yml/badge.svg)](https://github.com/toidang92/shortlink/actions/workflows/unit-tests.yml)
+[![Security: Code Scanning](https://github.com/toidang92/shortlink/actions/workflows/security-code-scanning.yml/badge.svg)](https://github.com/toidang92/shortlink/actions/workflows/security-code-scanning.yml)
 
 A URL shortening service built with Rails 8.1 API, PostgreSQL, and Redis Bloom Filter.
 
