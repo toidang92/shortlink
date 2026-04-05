@@ -1,0 +1,11 @@
+.git
+.github
+.bundle
+.rspec
+.rubocop.yml
+.tool-versions
+log/*
+tmp/*
+storage/*
+docs/
+spec/
