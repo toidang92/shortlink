@@ -26,7 +26,7 @@ jobs:
       - name: Run Brakeman
         run: bundle exec brakeman -q --format sarif -o brakeman.sarif
       - name: Upload SARIF to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: brakeman.sarif
