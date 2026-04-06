@@ -5,6 +5,10 @@ class Base62Service
   # 35-bit mask ensures XOR output < 2^35 ≈ 34B < 62^6 ≈ 56B, so Base62 always fits in 6 chars
   MASK = (1 << 35) - 1
 
+  # SECRET prevents sequential ID enumeration: without it, code = Base62(id),
+  # so id=1 → "000001", id=2 → "000002", etc. — trivially guessable.
+  # XOR with SECRET scrambles the mapping so codes appear random to casual observers.
+  # Note: This is obfuscation, not encryption — see docs/BASE62_ALGORITHM.md#security-note
   SECRET = ENV.fetch('SHORTLINK_SECRET').to_i(16) & MASK
 
   def self.encode(id)

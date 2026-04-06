@@ -153,7 +153,7 @@ With 6-character codes and a 35-bit mask, the system supports **~34 billion** un
 
 | Property | Description | Mitigation |
 |----------|-------------|------------|
-| **Not cryptographically secure** | XOR obfuscation is not encryption; a determined attacker with ~64 known (id, code) pairs can recover SECRET via XOR | Acceptable for URL shortener; not protecting sensitive data |
+| **Not cryptographically secure** | XOR obfuscation is not encryption; an attacker with just 1 known (id, code) pair can recover SECRET (see [Security Note](#security-note)) | Acceptable for URL shortener; not protecting sensitive data. Use FPE (FF1/FF3) or Skip32 if stronger obfuscation is needed |
 | **SECRET is immutable** | Changing SECRET breaks all existing codes | Document this constraint; never rotate SECRET in production |
 | **Same URL gets different codes** | Re-encoding the same URL creates a new DB record with a new ID and new code | By design — allows analytics per-link; add dedup layer if needed |
 | **Predictable with leaked SECRET** | If SECRET is exposed, all codes become predictable | Protect SECRET via env vars; restrict access |
@@ -172,9 +172,60 @@ With 6-character codes and a 35-bit mask, the system supports **~34 billion** un
 
 The XOR obfuscation provides **obscurity, not security**. Specifically:
 
-- An attacker who knows `encode(1) = "xxx"` and `encode(2) = "yyy"` can compute `SECRET = from_base62("xxx") XOR 1`
-- With SECRET, they can enumerate all valid short codes
-- This is acceptable because URL shorteners are not access-control mechanisms — the short code is a convenience, not a secret
+- XOR is its own inverse: `a XOR b XOR b = a`, so `SECRET = id XOR obfuscated_code`
+- An attacker who knows **just one** `(id, code)` pair can recover SECRET immediately
+- With SECRET, they can decode any short code to its ID, and predict future codes
+
+**Example attack with a single known pair:**
+
+```ruby
+# ALPHABET is public knowledge (visible in source code or easily guessable)
+ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+def from_base62(str)
+  str.each_char.reduce(0) { |acc, char| (acc * 62) + ALPHABET.index(char) }
+end
+
+# from_base62 is just base conversion — like parseInt but base 62:
+#   "9krGNW" → '9'=9, 'k'=20, 'r'=27, 'G'=42, 'N'=49, 'W'=58
+#
+#   9                                  =              9
+#   9 * 62 + 20                        =            578
+#   578 * 62 + 27                      =         35,863
+#   35,863 * 62 + 42                   =      2,223,548
+#   2,223,548 * 62 + 49               =    137,859,025
+#   137,859,025 * 62 + 58             =  8,547,321,608
+
+# Suppose SECRET = 8,547,321,609 (attacker does NOT know this)
+# Attacker creates the first shortlink and observes:
+#   id = 1,  code = "9krGNW"
+
+# Step 1: Convert code to integer (anyone can do this)
+obfuscated = from_base62("9krGNW")          # → 8,547,321,608
+
+# Step 2: Recover SECRET (XOR is self-inverse)
+secret = 1 ^ obfuscated                     # → 1 XOR 8,547,321,608 = 8,547,321,609  ✓
+
+# Step 3: Verify with a second known pair (id=2, code="9krGNZ")
+from_base62("9krGNZ") ^ secret               # → 8,547,321,611 XOR 8,547,321,609 = 2  ✓
+
+# Step 4: Decode ANY code without knowing the ID
+obfuscated = from_base62("9krK0M")
+id = obfuscated ^ secret                     # → reveals the original DB ID = 12,345
+
+# Step 5: Predict future codes for any ID
+to_base62(12345 ^ secret)                    # → "9krK0M"
+```
+
+**Why only one pair is needed (not 64):**
+
+Unlike real ciphers where known-plaintext attacks require many samples to narrow down a large key space, XOR "encryption" with a fixed key leaks the key in a single equation: `key = plaintext XOR ciphertext`. There is no key schedule, no diffusion, no rounds — just one XOR operation.
+
+**Verification with a second pair:**
+
+An attacker can confirm the recovered SECRET by checking a second known pair: if `id2 XOR from_base62(code2) == SECRET`, the key is confirmed with certainty.
+
+This is acceptable because URL shorteners are not access-control mechanisms — the short code is a convenience, not a secret. If stronger obfuscation is needed, consider a format-preserving encryption (FPE) scheme like FF1/FF3, or a small block cipher like Skip32, where knowing plaintext-ciphertext pairs does not reveal the key.
 
 If access control is needed, add authentication or per-link passwords as a separate layer.
 
