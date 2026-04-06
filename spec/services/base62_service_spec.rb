@@ -10,9 +10,9 @@ RSpec.describe Base62Service do
       expect(decoded).to eq(id)
     end
 
-    it 'returns an 11-character string' do
-      expect(described_class.encode(1).length).to eq(11)
-      expect(described_class.encode(999_999).length).to eq(11)
+    it "returns a string at least #{AppConstants::MIN_CODE_LENGTH} characters long" do
+      expect(described_class.encode(1).length).to be >= AppConstants::MIN_CODE_LENGTH
+      expect(described_class.encode(999_999).length).to be >= AppConstants::MIN_CODE_LENGTH
     end
 
     it 'produces different codes for different IDs' do

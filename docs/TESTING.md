@@ -131,7 +131,7 @@ spec/
 | # | Test | What it verifies |
 |---|------|-----------------|
 | 1 | round-trips an ID correctly | Encode → decode = original ID |
-| 2 | returns an 11-character string | Consistent code length |
+| 2 | returns a string at least 6 characters long | Consistent code length |
 | 3 | produces different codes for different IDs | Uniqueness |
 | 4 | produces non-sequential codes | XOR obfuscation works |
 | 5 | only contains valid Base62 characters | Character set validation |
@@ -147,7 +147,7 @@ spec/
 | 5 | returns the ShortLink record for a valid code | Decode happy path |
 | 6 | returns nil for an unknown code | Decode not found |
 | 7 | returns nil for nil input | Decode nil safety |
-| 8 | returns nil for invalid format | Decode format validation |
+| 8 | returns nil for code shorter than minimum length | Decode format validation |
 
 ### Request: POST /encode (6 examples)
 

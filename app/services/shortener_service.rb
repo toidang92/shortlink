@@ -1,6 +1,4 @@
 class ShortenerService
-  # NOTE: Base62 encoding of sequential IDs is predictable — an attacker can enumerate valid short codes
-  # by brute-forcing nearby ID values. Consider using random/non-sequential codes if URL privacy is required.
   def self.encode(original_url)
     id = ActiveRecord::Base.connection.execute("SELECT nextval('short_links_id_seq')").first['nextval']
     code = Base62Service.encode(id)

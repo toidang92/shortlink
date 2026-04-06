@@ -33,7 +33,7 @@
 
 | Check | Implementation | Why |
 |-------|---------------|-----|
-| Format | `[a-zA-Z0-9]{11,20}` route constraint | Only valid codes reach the controller |
+| Format | `[a-zA-Z0-9]{6,20}` route constraint | Only valid codes reach the controller |
 | DB constraint | `NOT NULL`, unique index | Data integrity at database level |
 | Model validation | Presence, uniqueness, max length 20 | Application-level defense |
 
@@ -68,7 +68,7 @@ Incoming Request
 
 - Codes are generated deterministically: `Base62(id XOR SECRET)` — not random
 - XOR with a secret ENV variable prevents sequential code guessing
-- 62^11 = ~52 quadrillion possible codes — resistant to brute force enumeration
+- 6-char codes with 35-bit mask: ~34 billion unique codes. Consider increasing to 11 chars (64-bit mask, 62^11 ≈ 52 quadrillion) if brute-force resistance is critical
 - Collision is mathematically impossible (XOR and Base62 are bijective functions)
 - Unique DB index as additional safety net
 
@@ -149,7 +149,7 @@ origins 'https://yourdomain.com'
 Attackers may try to guess valid short URLs by brute-forcing codes.
 
 **Mitigation:**
-- Sufficiently large code space (62^11 ≈ 52 quadrillion combinations)
+- Current code space: 62^6 ≈ 56 billion combinations (can be increased to 62^11 ≈ 52 quadrillion by switching to 64-bit mask)
 - Rate limiting per IP (60 req/min global, 10 req/min encode)
 - Decode uses primary key lookup (O(1)), no sequential scan needed
 

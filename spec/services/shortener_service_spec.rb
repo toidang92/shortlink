@@ -13,7 +13,7 @@ RSpec.describe ShortenerService do
       record = described_class.encode('https://example.com')
 
       expect(record.original_url).to eq('https://example.com')
-      expect(record.short_code).to match(/\A[a-zA-Z0-9]{11,}\z/)
+      expect(record.short_code).to match(/\A[a-zA-Z0-9]{#{AppConstants::MIN_CODE_LENGTH},#{AppConstants::MAX_CODE_LENGTH}}\z/o)
     end
 
     it 'generates unique codes for different URLs' do
@@ -47,8 +47,8 @@ RSpec.describe ShortenerService do
       expect(described_class.decode(nil)).to be_nil
     end
 
-    it 'returns nil for invalid format' do
-      expect(described_class.decode('short')).to be_nil
+    it 'returns nil for code shorter than minimum length' do
+      expect(described_class.decode('abc')).to be_nil
     end
   end
 end

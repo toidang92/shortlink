@@ -7,7 +7,7 @@ RSpec.describe 'POST /encode' do
     expect(response).to have_http_status(:ok)
 
     body = response.parsed_body
-    expect(body['short_url']).to match(%r{\Ahttp://www.example.com/[a-zA-Z0-9]{11,}\z})
+    expect(body['short_url']).to match(%r{\Ahttp://www.example.com/[a-zA-Z0-9]{#{AppConstants::MIN_CODE_LENGTH},#{AppConstants::MAX_CODE_LENGTH}}\z}o)
   end
 
   it 'persists the URL in the database' do

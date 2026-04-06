@@ -77,7 +77,7 @@ Client ──► Rack::Attack (rate check)
               │     → gets auto-increment id
               │
               ├── Base62Service.encode(id)
-              │     → id XOR secret → Base62 → 11 chars
+              │     → id XOR secret → Base62 → 6 chars
               │
               ├── code = Base62(id ^ secret)
               │     → e.g. "aUBVMQWEHq8"
@@ -85,7 +85,7 @@ Client ──► Rack::Attack (rate check)
               ├── record.update!(short_code: code)
               │
               ▼
-       Response: { short_url: "http://host/aUBVMQWEHq8" }
+       Response: { short_url: "http://host/xK9m2p" }
 ```
 
 ### Decode (`POST /decode`)
@@ -153,16 +153,16 @@ ShortLink.create! → id (e.g. 123456)
   obfuscated = id XOR SECRET
        │
        ▼
-  short_code = Base62(obfuscated).rjust(11, '0')
-       → e.g. "aUBVMQWEHq8"
+  short_code = Base62(obfuscated & MASK_35).rjust(6, '0')
+       → e.g. "xK9m2p"
 ```
 
 **Decode (reverse):**
 ```
-  short_code = "aUBVMQWEHq8"
+  short_code = "xK9m2p"
        │
        ▼
-  obfuscated = Base62.decode("aUBVMQWEHq8")
+  obfuscated = Base62.decode("xK9m2p")
        │
        ▼
   id = obfuscated XOR SECRET
@@ -182,13 +182,12 @@ ShortLink.create! → id (e.g. 123456)
 
 ### Code format
 
-We use an 11-character Base62 code: `Base62(ID XOR secret).rjust(11, '0')`.
-
-Example: `aUBVMQWEHq8` (obfuscated ID)
+We use a 6-character Base62 code: `Base62((ID XOR secret) & MASK_35).rjust(6, '0')`.
 
 - Code is **deterministic** from DB ID — no randomness, no collisions
 - XOR with a fixed secret prevents sequential guessing
-- 11-char Base62 supports up to 62^11 ≈ 52 quadrillion unique IDs (covers full 64-bit range)
+- 35-bit mask ensures output fits in 6 Base62 characters (~34 billion unique IDs)
+- Can be increased to 11 chars (64-bit mask) for 62^11 ≈ 52 quadrillion capacity
 
 ### Why no collision handling is needed
 
@@ -242,7 +241,7 @@ Base62 encode → deterministic string
 
 ### Future improvements (at very large scale)
 
-- Current 11-character codes already cover full 64-bit range (62^11 ≈ 52 quadrillion)
+- Current 6-character codes support ~34 billion links; increase to 11-char (64-bit mask) for 52 quadrillion
 - Database sharding by short code prefix
 - Distributed ID generators (e.g., Snowflake) for deterministic codes
 - Consistent hashing for cache distribution
